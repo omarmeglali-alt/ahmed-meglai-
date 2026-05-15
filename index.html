@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNA 3D - Ahmed Meglali Edition</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #0d0d12; }
+        canvas { display: block; }
+        #ui {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            color: white;
+            font-family: 'Segoe UI', sans-serif;
+            pointer-events: none;
+        }
+        .legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: white;
+            font-family: monospace;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <h2>ADN 3D Interactif</h2>
+        <p>Modèle personnalisé pour Ahmed Meglali</p>
+    </div>
+
+    <div class="legend">
+        <strong>Configuration des liaisons :</strong><br>
+        <span style="color: #ff4757;">A</span> ≡ <span style="color: #2ed573;">T</span> (3 liaisons)<br>
+        <span style="color: #1e90ff;">C</span> = <span style="color: #ffa502;">G</span> (2 liaisons)
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+
+        const light1 = new THREE.DirectionalLight(0xffffff, 1);
+        light1.position.set(5, 10, 7.5);
+        scene.add(light1);
+        scene.add(new THREE.AmbientLight(0x404040, 2));
+
+        const dnaGroup = new THREE.Group();
+        scene.add(dnaGroup);
+
+        // Paramètres
+        const steps = 40;
+        const height = 30;
+        const radius = 4;
+        
+        // Géométries
+        const ballGeo = new THREE.SphereGeometry(0.4, 16, 16);
+        const stickGeo = new THREE.CylinderGeometry(0.15, 0.15, 2.2, 16);
+        stickGeo.rotateZ(Math.PI / 2);
+        const bondGeo = new THREE.CylinderGeometry(0.04, 0.04, 2, 8);
+        bondGeo.rotateZ(Math.PI / 2);
+
+        // Matériaux
+        const colors = { A: 0xff4757, T: 0x2ed573, C: 0x1e90ff, G: 0xffa502, spine: 0xeeeeee };
+
+        function createLabel(text, color) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 64; canvas.height = 64;
+            ctx.fillStyle = color;
+            ctx.font = "Bold 48px Arial";
+            ctx.textAlign = "center";
+            ctx.fillText(text, 32, 48);
+            const tex = new THREE.CanvasTexture(canvas);
+            return new THREE.Sprite(new THREE.SpriteMaterial({ map: tex }));
+        }
+
+        const sequence = [
+            {l: 'A', r: 'T', b: 3}, {l: 'T', r: 'A', b: 3},
+            {l: 'C', r: 'G', b: 2}, {l: 'G', r: 'C', b: 2}
+        ];
+
+        for (let i = 0; i < steps; i++) {
+            const ratio = i / steps;
+            const angle = ratio * Math.PI * 6;
+            const y = ratio * height - height/2;
+
+            const pair = sequence[i % 4];
+            const row = new THREE.Group();
+            row.position.y = y;
+            row.rotation.y = -angle;
+
+            // Backbone nodes
+            const b1 = new THREE.Mesh(ballGeo, new THREE.MeshPhongMaterial({color: colors.spine}));
+            b1.position.x = radius;
+            row.add(b1);
+            const b2 = new THREE.Mesh(ballGeo, new THREE.MeshPhongMaterial({color: colors.spine}));
+            b2.position.x = -radius;
+            row.add(b2);
+
+            // Nucleotides (Bases)
+            const mLeft = new THREE.Mesh(stickGeo, new THREE.MeshPhongMaterial({color: colors[pair.l]}));
+            mLeft.position.x = 2;
+            row.add(mLeft);
+            const mRight = new THREE.Mesh(stickGeo, new THREE.MeshPhongMaterial({color: colors[pair.r]}));
+            mRight.position.x = -2;
+            row.add(mRight);
+
+            // Lettres
+            const sL = createLabel(pair.l, 'white'); sL.position.set(2.5, 0.6, 0); row.add(sL);
+            const sR = createLabel(pair.r, 'white'); sR.position.set(-2.5, 0.6, 0); row.add(sR);
+
+            // LIAISONS HYDROGÈNE (Ahmed's Logic)
+            const bondMat = new THREE.MeshBasicMaterial({color: 0xffffff, transparent: true, opacity: 0.8});
+            if (pair.bonds === 3 || (pair.l === 'A' || pair.l === 'T')) { // Triple pour AT
+                [-0.25, 0, 0.25].forEach(z => {
+                    const b = new THREE.Mesh(bondGeo, bondMat);
+                    b.position.z = z;
+                    row.add(b);
+                });
+            } else { // Double pour CG
+                [-0.15, 0.15].forEach(z => {
+                    const b = new THREE.Mesh(bondGeo, bondMat);
+                    b.position.z = z;
+                    row.add(b);
+                });
+            }
+
+            dnaGroup.add(row);
+        }
+
+        camera.position.set(10, 5, 20);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            dnaGroup.rotation.y += 0.005;
+            controls.update();
+            renderer.render(scene, camera);
+        }
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        animate();
+    </script>
+</body>
+</html>
